@@ -10,7 +10,7 @@ action :auto_attach do
   node.set[:aws][:raid][@new_resource.mount_point] ||= {}
 
   if already_mounted(@new_resource.mount_point)
-    update_node_from_md_device(md_device_from_mount_point(mount_point), @new_resource.mount_point)
+    update_node_from_md_device(md_device_from_mount_point(@new_resource.mount_point), @new_resource.mount_point)
   else
     creating_from_snapshot = !(@new_resource.snapshots.nil? || @new_resource.snapshots.size == 0)
     use_existing_volumes = !(@new_resource.existing_volumes.nil? || @new_resource.existing_volumes.size == 0)
@@ -146,6 +146,8 @@ def create_raid_disk(mount_point, filesystem, filesystem_options, level, creatin
 
   mount_device(raid_dev, mount_point, filesystem, filesystem_options)
 
+  `update-initramfs -u`
+
   update_node_from_md_device(raid_dev, mount_point)
 end
 
@@ -190,7 +192,7 @@ def md_device_from_mount_point(mount_point)
     # Look at the mount point directory and see if containing device
     # is the same as the md device.
     if ::File.lstat(dir).rdev == ::File.lstat(mount_point).dev
-      md_device = dir
+      md_device = dir[5, dir.length]
       break
     end
   end
@@ -199,7 +201,7 @@ end
 
 def get_device_uuid(md_device)
   puts `ls -l /dev/disk/by-uuid`
-  command = "ls -l /dev/disk/by-uuid | grep '#{md_device}' | awk '{print $9}' | tr '\n' ' '"
+  command = "ls -l /dev/disk/by-uuid | grep '#{md_device}' | awk '{print $9}' | tr -d '\\n'"
   Chef::Log.info("Running #{command}")
   raid_uuid = `#{command}`
   Chef::Log.info("Raid device UUID: #{raid_uuid}")
@@ -209,13 +211,13 @@ end
 def get_devices_from_md_device(md_device)
   command = "mdadm --misc -D /dev/#{md_device} | grep '/dev/xvd' | awk '{print $7}' | tr '\\n' ' '"
   Chef::Log.info("Running #{command}")
-  raid_devices = `#{command}`
+  raid_devices = `#{command}`.split(' ')
   Chef::Log.info("already found the mounted device, created from #{raid_devices}")
   raid_devices
 end
 
 def does_md_device_contain(md_device, device)
-  command = "mdadm --misc -D #{md_device} | grep '#{device}' | wc -l | tr '\\n' ' '"
+  command = "mdadm --misc -D #{md_device} | grep '#{device}' | wc -l | tr -d '\\n'"
   Chef::Log.info("Running #{command}")
   count = `#{command}`
   Chef::Log.info("count #{count}")
