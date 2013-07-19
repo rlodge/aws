@@ -306,7 +306,9 @@ def assemble_raid(raid_dev, devices_string)
   raise "Failed to assemble raid array: #{o}" if e.to_i != 0 || e.to_i != 2
 end
 
-def attempt_mount(device_uuid, mount_point, filesystem_options, filesystem)
+def attempt_mount(raid_dev, mount_point, filesystem_options, filesystem)
+  device_uuid = nil
+
   `test -d #{mount_point}`
   if $?.to_i != 0
     `mkdir -p #{mount_point}`
@@ -315,6 +317,7 @@ def attempt_mount(device_uuid, mount_point, filesystem_options, filesystem)
   count = 0
   ret_value = 99
   until ret_value == 0 || count > 60 do
+    device_uuid = get_device_uuid(raid_dev)
     o = `mount -t #{filesystem} -o "#{filesystem_options}" -U #{device_uuid} #{mount_point}`
     ret_value = $?.to_i
     if ret_value != 0
@@ -324,12 +327,11 @@ def attempt_mount(device_uuid, mount_point, filesystem_options, filesystem)
     end
   end
   raise "Failed to mount drive: #{mount_point}:#{o}" if ret_value != 0
+  device_uuid
 end
 
 def mount_device(raid_dev, mount_point, filesystem, filesystem_options)
-  device_uuid = get_device_uuid(raid_dev)
-
-  attempt_mount(device_uuid, mount_point, filesystem_options, filesystem)
+  device_uuid = attempt_mount(raid_dev, mount_point, filesystem_options, filesystem)
 
   mount mount_point do
     fstype filesystem
