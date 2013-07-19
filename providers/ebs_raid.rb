@@ -78,7 +78,7 @@ def attach_ebs_volumes(disk_count,
       disk_dev_path = "#{disk_dev}#{i}"
 
       Chef::Log.info("attach dev: #{disk_dev_path} existing volume #{existing_volumes[i]}")
-      attach_volume(existing_volumes[i], instance_id, "/dev/#{disk_dev_path}", 3*60)
+      attach_volume(existing_volumes[i], instance_id, "/dev/#{disk_dev_path}", 10*60)
       node.set['aws']['ebs_volume'][disk_dev_path]['volume_id'] = existing_volumes[i]
       node.save
       devices[disk_dev_path] = {}
@@ -95,10 +95,10 @@ def attach_ebs_volumes(disk_count,
       nvid = create_volume(creating_from_snapshot ? snapshots[i-1] : '',
                            disk_size,
                            nil,
-                           3*60,
+                           10*60,
                            disk_type,
                            disk_piops)
-      attach_volume(nvid, instance_id, "/dev/#{disk_dev_path}", 3*60)
+      attach_volume(nvid, instance_id, "/dev/#{disk_dev_path}", 10*60)
       node.set['aws']['ebs_volume'][disk_dev_path]['volume_id'] = nvid
       node.save
 
@@ -302,27 +302,40 @@ def assemble_raid(raid_dev, devices_string)
 
   # Now that attach is done we re-build the md device
   o = `mdadm --assemble /dev/#{raid_dev} #{devices_string}`
+  e = $?
   raise "Failed to assemble raid array: #{o}" if e.to_i != 0 || e.to_i != 2
 end
 
+def attempt_mount(device_uuid, mount_point, filesystem_options, filesystem)
+  `test -d #{mount_point}`
+  if $?.to_i != 0
+    `mkdir -p #{mount_point}`
+  end
+
+  count = 0
+  ret_value = 99
+  until ret_value == 0 || count > 60 do
+    o = `mount -t #{filesystem} -o "#{filesystem_options}" -U #{device_uuid} #{mount_points}`
+    ret_value = $?.to_i
+    if ret_value != 0
+      Chef::Log.warn("Mount for #{mount_point} UUID=#{device_uuid} failed (#{o}).  Sleeping 10 and trying again")
+      sleep 10
+      count += 1
+    end
+  end
+  raise "Failed to mount drive: #{mount_point}:#{o}" if ret_value != 0
+end
 
 def mount_device(raid_dev, mount_point, filesystem, filesystem_options)
   device_uuid = get_device_uuid(raid_dev)
 
-  # Create the mount point
-  directory mount_point do
-    owner "root"
-    group "root"
-    mode 0755
-    action :create
-    not_if "test -d #{mount_point}"
-  end
+  attempt_mount(device_uuid, mount_point, filesystem_options, filesystem)
 
   mount mount_point do
     fstype filesystem
     device_type :uuid
     device device_uuid
     options filesystem_options
-    action [:mount, :enable]
+    action [:enable]
   end
 end
