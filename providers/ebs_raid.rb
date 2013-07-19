@@ -315,7 +315,7 @@ def attempt_mount(device_uuid, mount_point, filesystem_options, filesystem)
   count = 0
   ret_value = 99
   until ret_value == 0 || count > 60 do
-    o = `mount -t #{filesystem} -o "#{filesystem_options}" -U #{device_uuid} #{mount_points}`
+    o = `mount -t #{filesystem} -o "#{filesystem_options}" -U #{device_uuid} #{mount_point}`
     ret_value = $?.to_i
     if ret_value != 0
       Chef::Log.warn("Mount for #{mount_point} UUID=#{device_uuid} failed (#{o}).  Sleeping 10 and trying again")
