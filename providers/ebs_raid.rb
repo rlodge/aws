@@ -95,10 +95,10 @@ def attach_ebs_volumes(disk_count,
       nvid = create_volume(creating_from_snapshot ? snapshots[i-1] : '',
                            disk_size,
                            nil,
-                           10*60,
+                           15*60,
                            disk_type,
                            disk_piops)
-      attach_volume(nvid, instance_id, "/dev/#{disk_dev_path}", 10*60)
+      attach_volume(nvid, instance_id, "/dev/#{disk_dev_path}", 15*60)
       node.set['aws']['ebs_volume'][disk_dev_path]['volume_id'] = nvid
       node.save
 
