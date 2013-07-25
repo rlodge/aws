@@ -230,5 +230,124 @@ module Opscode
 
 
     end
+
+    module Route53
+
+      def route53
+        begin
+          require 'right_aws'
+        rescue LoadError
+          Chef::Log.error("Missing gem 'right_aws'. Use the default aws recipe to install it first.")
+        end
+
+        @@route53 ||= RightAws::Route53Interface.new(new_resource.aws_access_key, new_resource.aws_secret_access_key, { :logger => Chef::Log})
+      end
+
+      def find_zone_id(zone_name)
+        zone_id = nil
+        zones = route53.list_hosted_zones
+        if !zones.nil? and zones.is_a?(Array)
+          zones.each { |zone|
+            if zone[:name].chop == zone_name or zone[:name] == zone_name
+              zone_id = zone[:aws_id]
+              break
+            end
+          }
+        end
+        zone_id
+      end
+
+      def get_existing_resource_record(zone_id, fqdn, type)
+        existing_record = nil
+
+        records = route53.list_resource_record_sets(zone_id)
+        if !records.nil? and records.is_a?(Array)
+          records.each { |record|
+            if (record[:name].chop == fqdn or record[:name] == fqdn) and (record[:type] == type)
+              existing_record = record
+              break
+            end
+          }
+        end
+
+        existing_record
+      end
+
+      def create_resource_record(zone_name, fqdn, type, ttl, values)
+        zone_id = find_zone_id(zone_name)
+        existing_record = get_existing_resource_record(zone_id, fqdn, type)
+        if existing_record.nil?
+          create_new_record(fqdn, ttl, type, values, zone_id)
+        else
+          Chef::Log.warn("Record exists for #{fqdn}/#{type}; not creating.")
+        end
+      end
+
+      def delete_resource_record(zone_name, fqdn, type)
+        zone_id = find_zone_id(zone_name)
+        existing_record = get_existing_resource_record(zone_id, fqdn, type)
+        if !existing_record.nil?
+          delete_existing_record(existing_record, fqdn, type, zone_id)
+        else
+          Chef::Log.warn("Record does not exist for #{fqdn}/#{type}; not deleting.")
+        end
+      end
+
+      def delete_existing_record(existing_record, fqdn, type, zone_id)
+        description = "Deleting #{fqdn}/#{type} from #{new_resource.name}"
+        result = route53.delete_resource_record_sets(zone_id, [existing_record], description)
+        wait_for_change(description, result)
+      end
+
+      def update_resource_record(zone_name, fqdn, type, ttl, values)
+        zone_id = find_zone_id(zone_name)
+        existing_record = get_existing_resource_record(zone_id, fqdn, type)
+        if existing_record.nil?
+          create_new_record(fqdn, ttl, type, values, zone_id)
+        else
+          if !fqdn.end_with?('.')
+            fqdn = fqdn + '.'
+          end
+          new_record = {:name => fqdn,
+                        :type => type,
+                        :ttl => ttl,
+                        :resource_records => values}
+          if new_record == existing_record
+            Chef::Log.warn("Old/new records equal for #{fqdn}/#{type}; not changing.")
+          else
+            existing_record[:action] = :delete
+            new_record[:action] = :create
+            description = "Updating #{fqdn}/#{type} from #{new_resource.name}"
+            result = route53.change_resource_record_sets(zone_id, [existing_record, new_record], description)
+            wait_for_change(description, result)
+          end
+        end
+      end
+
+      def wait_for_change(description, result)
+        Chef::Log.debug("Creation info: #{result}")
+        status = result[:status]
+        change_id = result[:aws_id]
+        while status == 'PENDING'
+          sleep 2
+          result = route53.get_change(change_id)
+          status = result[:status]
+          Chef::Log.debug("Pending execution for: #{description} (#{change_id}) - #{status}")
+        end
+        status
+      end
+
+      def create_new_record(fqdn, ttl, type, values, zone_id)
+        new_record_set = [{:name => fqdn,
+                           :type => type,
+                           :ttl => ttl,
+                           :resource_records => values}]
+        description = "Creating #{fqdn}/#{type} from #{new_resource.name}"
+        result = route53.create_resource_record_sets(zone_id, new_record_set, description)
+        wait_for_change(description, result)
+      end
+
+    end
+
   end
 end
