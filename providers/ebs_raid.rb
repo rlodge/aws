@@ -133,7 +133,24 @@ def create_raid_disk(mount_point, filesystem, filesystem_options, level, creatin
     Chef::Log.info("Format device found: /dev/#{raid_dev}")
     case filesystem
       when "ext4"
-        system("mke2fs -t #{filesystem} -F /dev/#{raid_dev}")
+        Chef::Log.info("Creating ext4 filesystem on: /dev/#{raid_dev}")
+
+        count = 0
+        ret_value = 99
+        test_uuid = ''
+        until (ret_value == 0 && test_uuid.to_s != '') || count > 10 do
+          o1 = `mke2fs -t #{filesystem} -F /dev/#{raid_dev}`
+          ret_value = $?.to_i
+          test_uuid = get_device_uuid(raid_dev)
+          if ret_value != 0 || test_uuid.to_s == ''
+            Chef::Log.warn("Dev file system not successfully created.  Sleeping 120 and trying again")
+            sleep 120
+            count += 1
+          end
+          test_uuid = get_device_uuid(raid_dev)
+        end
+
+        raise "Failed to create file system ext4: #{o1}" if ret_value != 0
       else
         #TODO fill in details on how to format other filesystems here
         Chef::Log.info("Can't format filesystem #{filesystem}")
