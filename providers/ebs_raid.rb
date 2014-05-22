@@ -77,9 +77,10 @@ def attach_ebs_volumes(disk_count,
 
       disk_dev_path = "#{disk_dev}#{i}"
 
-      Chef::Log.info("attach dev: #{disk_dev_path} existing volume #{existing_volumes[i]}")
-      attach_volume(existing_volumes[i], instance_id, "/dev/#{disk_dev_path}", 10*60)
-      node.set['aws']['ebs_volume'][disk_dev_path]['volume_id'] = existing_volumes[i]
+      volume = existing_volumes[i - 1]
+      Chef::Log.info("attach dev: #{disk_dev_path} existing volume #{volume}")
+      attach_volume(volume, instance_id, "/dev/#{disk_dev_path}", 10*60)
+      node.set['aws']['ebs_volume'][disk_dev_path]['volume_id'] = volume
       node.save
       devices[disk_dev_path] = {}
       devices[disk_dev_path]['aws_volume_id'] = node['aws']['ebs_volume'][disk_dev_path]['volume_id']
