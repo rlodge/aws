@@ -115,6 +115,8 @@ def attach_ebs_volumes(disk_count,
 end
 
 def create_raid_disk(mount_point, filesystem, filesystem_options, level, creating_from_snapshot, devices)
+  `udevadm control --stop-exec-queue`
+
   devices_string = device_map_to_string(devices)
   Chef::Log.info("Adding #{devices_string} to new raid array")
 
@@ -158,13 +160,19 @@ def create_raid_disk(mount_point, filesystem, filesystem_options, level, creatin
     end
   else
     # Reassembling the raid device on our system
+    if not find_md_device(devices).to_s.empty?
+      raid_dev = find_md_device(devices)
+    end
     assemble_raid(raid_dev, devices_string)
     raid_dev = find_md_device(devices)
   end
 
   mount_device(raid_dev, mount_point, filesystem, filesystem_options)
 
+
   `update-initramfs -u`
+
+  `udevadm control --start-exec-queue`
 
   update_node_from_md_device(raid_dev, mount_point)
 end
@@ -318,10 +326,21 @@ def assemble_raid(raid_dev, devices_string)
   Chef::Log.info("Raid device /dev/#{raid_dev} does not exist re-assembling")
   Chef::Log.debug("Devices for /dev/#{raid_dev} are #{devices_string}")
 
+  sleep 60
+  puts `mdadm -E --scan`
+
   # Now that attach is done we re-build the md device
-  o = `mdadm --assemble /dev/#{raid_dev} #{devices_string}`
+  uuid = `mdadm -E --scan | grep "#{raid_dev}" |awk '{print $4}'|sed 's/UUID=//g'`
+  if uuid.to_s.empty?
+    cmd = "mdadm --assemble /dev/#{raid_dev} #{devices_string}"
+  else
+    cmd = "mdadm --assemble --uuid=#{uuid} /dev/#{raid_dev} #{devices_string}"
+  end
+
+  o = `#{cmd}`
   e = $?
-  raise "Failed to assemble raid array: #{o}" if e.to_i != 0 || e.to_i != 2
+  e = e.to_s.gsub(/^.*exit */, '')
+  raise "Failed to assemble raid array: #{cmd} #{o} #{e}" if e.to_i != 0 && e.to_i != 2
 end
 
 def attempt_mount(raid_dev, mount_point, filesystem_options, filesystem)
