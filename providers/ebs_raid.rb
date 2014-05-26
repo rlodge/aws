@@ -115,7 +115,6 @@ def attach_ebs_volumes(disk_count,
 end
 
 def create_raid_disk(mount_point, filesystem, filesystem_options, level, creating_from_snapshot, devices)
-  `udevadm control --stop-exec-queue`
 
   devices_string = device_map_to_string(devices)
   Chef::Log.info("Adding #{devices_string} to new raid array")
@@ -159,11 +158,13 @@ def create_raid_disk(mount_point, filesystem, filesystem_options, level, creatin
         Chef::Log.info("Can't format filesystem #{filesystem}")
     end
   else
+    `udevadm control --stop-exec-queue`
     # Reassembling the raid device on our system
     if not find_md_device(devices).to_s.empty?
       raid_dev = find_md_device(devices)
     end
     assemble_raid(raid_dev, devices_string)
+    `udevadm control --start-exec-queue`
     raid_dev = find_md_device(devices)
   end
 
@@ -172,7 +173,6 @@ def create_raid_disk(mount_point, filesystem, filesystem_options, level, creatin
 
   `update-initramfs -u`
 
-  `udevadm control --start-exec-queue`
 
   update_node_from_md_device(raid_dev, mount_point)
 end
