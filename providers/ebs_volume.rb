@@ -69,7 +69,7 @@ action :attach do
       # format if not snapshot
       if new_resource.snapshot_id.nil?
         Chef::Log.info("Format device attached: #{new_resource.device}")
-        case filesystem
+        case new_resource.filesystem
           when "ext4"
             Chef::Log.info("Creating ext4 filesystem on: #{new_resource.device}")
         
