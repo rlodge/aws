@@ -66,6 +66,34 @@ action :attach do
       # always use a symbol here, it is a Hash
       node.set['aws']['ebs_volume'][new_resource.name]['volume_id'] = vol[:aws_id]
       node.save unless Chef::Config[:solo]
+      # format if not snapshot
+      if new_resource.snapshot_id.nil?
+        Chef::Log.info("Format device attached: #{new_resource.device}")
+        case filesystem
+          when "ext4"
+            Chef::Log.info("Creating ext4 filesystem on: #{new_resource.device}")
+        
+            count = 0
+            ret_value = 99
+            test_uuid = ''
+            until (ret_value == 0 && test_uuid.to_s != '') || count > 10 do
+              o1 = `mke2fs -t #{filesystem} -F #{new_resource.device}`
+              ret_value = $?.to_i
+              test_uuid = get_device_uuid(raid_dev)
+              if ret_value != 0 || test_uuid.to_s == ''
+                Chef::Log.warn("Dev file system not successfully created.  Sleeping 120 and trying again")
+                sleep 120
+                count += 1
+              end
+              test_uuid = get_device_uuid(raid_dev)
+            end
+        
+            raise "Failed to create file system ext4: #{o1}" if ret_value != 0
+          else
+            #TODO fill in details on how to format other filesystems here
+            Chef::Log.info("Can't format filesystem #{filesystem}")
+        end
+      end
     end
   end
 end
@@ -107,4 +135,14 @@ action :prune do
 end
 
 private
+
+def get_device_uuid(device)
+  device_part=devicepart=device.gsub(/.*\// , '')
+  puts `ls -l /dev/disk/by-uuid`
+  command = "ls -l /dev/disk/by-uuid | grep '#{device_part}' | awk '{print $9}' | tr -d '\\n'"
+  Chef::Log.info("Running #{command}")
+  raid_uuid = `#{command}`
+  Chef::Log.info("Device UUID: #{raid_uuid}")
+  raid_uuid
+end
 
