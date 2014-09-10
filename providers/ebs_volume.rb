@@ -68,16 +68,17 @@ action :attach do
       node.save unless Chef::Config[:solo]
       # format if not snapshot
       if new_resource.snapshot_id.nil?
-        Chef::Log.info("Format device attached: #{new_resource.device}")
+        internal_device=internal_device.gsub(/\/sd/,'/xvd')
+        Chef::Log.info("Format device attached: #{internal_device}")
         case new_resource.filesystem
           when "ext4"
-            Chef::Log.info("Creating ext4 filesystem on: #{new_resource.device}")
+            Chef::Log.info("Creating ext4 filesystem on: #{internal_device}")
         
             count = 0
             ret_value = 99
             test_uuid = ''
             until (ret_value == 0 && test_uuid.to_s != '') || count > 10 do
-              o1 = `mke2fs -t #{new_resource.filesystem} -F #{new_resource.device}`
+              o1 = `mke2fs -t #{new_resource.filesystem} -F #{internal_device}`
               ret_value = $?.to_i
               test_uuid = get_device_uuid(raid_dev)
               if ret_value != 0 || test_uuid.to_s == ''
