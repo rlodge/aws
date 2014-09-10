@@ -68,7 +68,7 @@ action :attach do
       node.save unless Chef::Config[:solo]
       # format if not snapshot
       if new_resource.snapshot_id.nil?
-        internal_device=internal_device.gsub(/\/sd/,'/xvd')
+        internal_device=new_resource.gsub(/\/sd/,'/xvd')
         Chef::Log.info("Format device attached: #{internal_device}")
         case new_resource.filesystem
           when "ext4"
