@@ -9,6 +9,7 @@ attribute :availability_zone,     :kind_of => String
 attribute :device,                :kind_of => String
 attribute :volume_id,             :kind_of => String
 attribute :description,           :kind_of => String
+attribute :filesystem,            :kind_of => String, :default => 'ext4'
 attribute :timeout,               :default => 3*60 # 3 mins, nil or 0 for no timeout
 attribute :snapshots_to_keep,     :default => 2
 attribute :volume_type,           :kind_of => String, :default => 'standard'
