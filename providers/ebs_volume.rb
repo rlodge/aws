@@ -80,13 +80,13 @@ action :attach do
             until (ret_value == 0 && test_uuid.to_s != '') || count > 10 do
               o1 = `mke2fs -t #{new_resource.filesystem} -F #{internal_device}`
               ret_value = $?.to_i
-              test_uuid = get_device_uuid(raid_dev)
+              test_uuid = get_device_uuid(internal_device)
               if ret_value != 0 || test_uuid.to_s == ''
                 Chef::Log.warn("Dev file system not successfully created.  Sleeping 120 and trying again")
                 sleep 120
                 count += 1
               end
-              test_uuid = get_device_uuid(raid_dev)
+              test_uuid = get_device_uuid(internal_device)
             end
         
             raise "Failed to create file system ext4: #{o1}" if ret_value != 0
