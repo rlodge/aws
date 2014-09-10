@@ -77,7 +77,7 @@ action :attach do
             ret_value = 99
             test_uuid = ''
             until (ret_value == 0 && test_uuid.to_s != '') || count > 10 do
-              o1 = `mke2fs -t #{filesystem} -F #{new_resource.device}`
+              o1 = `mke2fs -t #{new_resource.filesystem} -F #{new_resource.device}`
               ret_value = $?.to_i
               test_uuid = get_device_uuid(raid_dev)
               if ret_value != 0 || test_uuid.to_s == ''
@@ -91,7 +91,7 @@ action :attach do
             raise "Failed to create file system ext4: #{o1}" if ret_value != 0
           else
             #TODO fill in details on how to format other filesystems here
-            Chef::Log.info("Can't format filesystem #{filesystem}")
+            Chef::Log.info("Can't format filesystem #{new_resource.filesystem}")
         end
       end
     end
