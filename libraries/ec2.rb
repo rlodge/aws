@@ -64,7 +64,7 @@ module Opscode
         availability_zone ||= instance_availability_zone
 
         # Sanity checks so we don't shoot ourselves.
-        raise "Invalid volume type: #{volume_type}" unless ['standard', 'io1'].include?(volume_type)
+        raise "Invalid volume type: #{volume_type}" unless ['standard', 'gp2', 'io1'].include?(volume_type)
 
         # PIOPs requested. Must specify an iops param and probably won't be "low".
         if volume_type == 'io1'
